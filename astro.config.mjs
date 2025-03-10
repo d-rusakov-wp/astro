@@ -1,6 +1,7 @@
 import { defineConfig, sharpImageService } from 'astro/config'
 import viteSassGlob from 'vite-plugin-sass-glob-import'
 import icon from 'astro-icon'
+import preact from '@astrojs/preact'
 
 // const outputPluginStats = () => ({
 //   name: 'output-plugin-stats',
@@ -38,6 +39,7 @@ export default defineConfig({
     service: sharpImageService()
   },
   integrations: [
+    preact(),
     icon({
       iconDir: 'src/shared/assets/icons',
       svgoOptions: {

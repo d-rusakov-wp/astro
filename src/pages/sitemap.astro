@@ -4,6 +4,7 @@ import Container from '@components/Container/Container'
 import Title from '@ui/Title/Title'
 import { Icon } from 'astro-icon/components'
 import { PAGES } from '@shared/const/'
+import Greeting from 'src/components/Greeting/Greeting'
 ---
 
 <Layout title="Список страниц">
@@ -14,6 +15,11 @@ import { PAGES } from '@shared/const/'
           <Icon name="logo" />
         </div>
         <Title text="Список страниц" size="sm" />
+
+        <Greeting name="default" messages={['Hi', 'Hello', 'Howdy', 'Hey there']} />
+        <Greeting name="load" client:load messages={['Hi', 'Hello', 'Howdy', 'Hey there']} />
+        <Greeting name="visible" client:visible messages={['Hi', 'Hello', 'Howdy', 'Hey there']} />
+
         <ol>
           {
             PAGES.map((item) => (

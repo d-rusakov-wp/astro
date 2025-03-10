@@ -25,7 +25,9 @@
     "images": "node ./util/images-optimize.mjs"
   },
   "dependencies": {
+    "@astrojs/preact": "^4.0.5",
     "astro": "^4.16.13",
+    "preact": "^10.26.4",
     "scroll-lock": "^2.1.5"
   },
   "devDependencies": {
