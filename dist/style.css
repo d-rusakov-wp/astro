@@ -1,0 +1,1 @@
+.greeting{position:relative;margin-top:15px;padding:20px;border:2px dashed blueviolet}.greeting:after{padding:5px 10px;position:absolute;border-top:2px dashed blueviolet;border-left:2px dashed blueviolet;right:0;bottom:0;content:attr(data-name)}.greeting h3{margin:0;padding:0}

@@ -16,9 +16,17 @@ import Greeting from 'src/components/Greeting/Greeting'
         </div>
         <Title text="Список страниц" size="sm" />
 
-        <Greeting name="default" messages={['Hi', 'Hello', 'Howdy', 'Hey there']} />
-        <Greeting name="load" client:load messages={['Hi', 'Hello', 'Howdy', 'Hey there']} />
-        <Greeting name="visible" client:visible messages={['Hi', 'Hello', 'Howdy', 'Hey there']} />
+        <Greeting name="base" messages={['Hi', 'Hello', 'Howdy', 'Hey there']} />
+
+        <Greeting name="client:load" client:load messages={['Hi', 'Hello', 'Howdy', 'Hey there']} />
+
+        <Greeting name="client:visible" client:visible messages={['Hi', 'Hello', 'Howdy', 'Hey there']} />
+
+        <Greeting name="client:idle" client:idle messages={['Hi', 'Hello', 'Howdy', 'Hey there']} />
+
+        <Greeting name="client:only" client:only messages={['Hi', 'Hello', 'Howdy', 'Hey there']} />
+
+        <Greeting name="server:defer" server:defer messages={['Hi', 'Hello', 'Howdy', 'Hey there']} />
 
         <ol>
           {
