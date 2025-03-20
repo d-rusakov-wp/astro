@@ -1,5 +1,7 @@
 # Адаптер
 
+https://refactoringu.ru/ru/design-patterns/adapter.html
+
 ```ts
 interface Duck {
     quack(): void;
@@ -101,6 +103,8 @@ testDuck(turkeyAdapter);
     - Ограничения, связанные с возможностями языка программирования
 
 # Декоратор
+
+https://refactoringu.ru/ru/design-patterns/decorator.html
 
 ```ts
 interface Coffee {
@@ -224,6 +228,8 @@ console.log("Кофе с молоком и сахаром:", coffeeWithMilkAndSu
 
 # Фасад
 
+https://refactoringu.ru/ru/design-patterns/facade.html
+
 ```ts
 class CPU {
     execute() {
@@ -256,11 +262,11 @@ class Computer {
 
     start() {
         console.log("Запуск компьютера...");
-       
+
         this.cpu.execute();
         this.memory.load();
         this.hardDrive.read();
-       
+
         console.log("Компьютер запущен!");
     }
 }
@@ -327,6 +333,8 @@ computer.start();
 
 # Компоновщик
 
+https://refactoringu.ru/ru/design-patterns/composite.html
+
 ```ts
 interface IComponent {
     name: string;
@@ -357,7 +365,7 @@ class Leaf implements IComponent {
 class Composite implements IComponent {
     name: string;
     parent?: Composite;
-   
+
     private children: IComponent[] = [];
 
     constructor(name: string) {
@@ -366,11 +374,11 @@ class Composite implements IComponent {
 
     operation(): string {
         const results = [this.name];
-      
+
         for (const child of this.children) {
             results.push(child.operation());
         }
-        
+
         return results.join('\n');
     }
 
@@ -384,16 +392,16 @@ class Composite implements IComponent {
     add(component: IComponent): void {
         component.detach();
         component.parent = this;
-       
+
         this.children.push(component);
     }
 
     delete(component: IComponent): void {
         const index = this.children.indexOf(component);
-      
+
         if (index !== -1) {
             this.children.splice(index, 1);
-            
+
             component.parent = undefined;
         }
     }
@@ -474,6 +482,8 @@ console.log(root.operation());
 
 # Заместитель
 
+https://refactoringu.ru/ru/design-patterns/proxy.html
+
 ```ts
 interface Subject {
     request(): void;
@@ -501,7 +511,7 @@ class Proxy implements Subject {
 
     private checkAccess(): boolean {
         console.log('Proxy: Проверка доступа перед обработкой запроса.');
-        
+
         return true;
     }
 
@@ -512,15 +522,15 @@ class Proxy implements Subject {
 
 function clientCode(subject: Subject) {
     console.log('Клиент: Выполнение кода с реальным предметом:');
-    
+
     subject.request();
-    
+
     console.log('');
-    
+
     console.log('Клиент: Выполнение того же кода с заместителем:');
-    
+
     const proxy = new Proxy(new RealSubject());
-    
+
     proxy.request();
 }
 
@@ -582,3 +592,13 @@ clientCode(new RealSubject());
     - Сложность добавления новых операций
     - Ограничения при работе с разными типами объектов
     - Риск усложнения структуры при росте системы
+
+
+# Легковес
+
+https://refactoringu.ru/ru/design-patterns/flyweight.html
+
+
+# Мост
+
+https://refactoringu.ru/ru/design-patterns/bridge.html
