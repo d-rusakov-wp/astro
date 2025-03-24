@@ -3,48 +3,51 @@
 https://refactoringu.ru/ru/design-patterns/adapter.html
 
 ```ts
-interface Duck {
-    quack(): void;
-    fly(): void;
+export interface TaxiCalculator {
+   calculatePriceInEuros(km: number, isAirport: boolean): number;
 }
 
-class Turkey {
-    gobble(): void {
-        console.log("Гавкает");
-    }
-
-    fly(): void {
-        console.log("Летит как индейка");
-    }
+export class UKTaxiCalculatorLibrary {
+   public getPriceInPounds(miles: number, fare: Fares): number {
+      if (fare === Fares.Airport) {
+         return 5 + miles * 2.15;
+      }
+      
+      return miles * 1.95;
+   }
 }
 
-class TurkeyAdapter implements Duck {
-    private turkey: Turkey;
-
-    constructor(turkey: Turkey) {
-        this.turkey = turkey;
-    }
-
-    quack(): void {
-        this.turkey.gobble();
-    }
-
-    fly(): void {
-        for (let i = 0; i < 5; i++) {
-            this.turkey.fly();
-        }
-    }
+export enum Fares {
+   Standard,
+   Airport,
 }
 
-function testDuck(duck: Duck): void {
-    duck.quack();
-    duck.fly();
+class UKTaxiCalculatorLibraryAdapter implements TaxiCalculator {
+   constructor(private adaptee: UKTaxiCalculatorLibrary) {
+   }
+
+   calculatePriceInEuros(km: number, isAirport: boolean): number {
+      const miles = km * 1.609;
+      const fare = isAirport ? Fares.Airport : Fares.Standard;
+      const pounds = this.adaptee.getPriceInPounds(miles, fare);
+      const euros = pounds * 1.15;
+      
+      return euros;
+   }
 }
 
-const turkey = new Turkey();
-const turkeyAdapter = new TurkeyAdapter(turkey);
+function client(taxiCalculator: TaxiCalculator): void {
+   console.log('Calculating the price for a 15 Km run to the airport');
+  
+   const priceInEuros = taxiCalculator.calculatePriceInEuros(15, true);
+   
+   console.log(`Total price: ${priceInEuros}€`);
+}
 
-testDuck(turkeyAdapter);
+const incompatibleLibrary = new UKTaxiCalculatorLibrary();
+const adaptedLibrary = new UKTaxiCalculatorLibraryAdapter(incompatibleLibrary);
+
+client(adaptedLibrary);
 ```
 
 ## Для чего нужен этот паттерн?
@@ -107,68 +110,58 @@ testDuck(turkeyAdapter);
 https://refactoringu.ru/ru/design-patterns/decorator.html
 
 ```ts
-interface Coffee {
-    cost(): number;
-    ingredients(): string;
+interface Component {
+   operation(): string;
 }
 
-class SimpleCoffee implements Coffee {
-    cost(): number {
-        return 1;
-    }
-
-    ingredients(): string {
-        return "Кофе";
-    }
+class ConcreteComponent implements Component {
+   public operation(): string {
+      return 'ConcreteComponent';
+   }
 }
 
-abstract class CoffeeDecorator implements Coffee {
-    protected coffee: Coffee;
+class Decorator implements Component {
+   protected component: Component;
 
-    constructor(coffee: Coffee) {
-        this.coffee = coffee;
-    }
+   constructor(component: Component) {
+      this.component = component;
+   }
 
-    cost(): number {
-        return this.coffee.cost();
-    }
-
-    ingredients(): string {
-        return this.coffee.ingredients();
-    }
+   public operation(): string {
+      return this.component.operation();
+   }
 }
 
-class MilkDecorator extends CoffeeDecorator {
-    cost(): number {
-        return super.cost() + 0.5;
-    }
-
-    ingredients(): string {
-        return super.ingredients() + ", Молоко";
-    }
+class ConcreteDecoratorA extends Decorator {
+   public operation(): string {
+      return `ConcreteDecoratorA(${super.operation()})`;
+   }
 }
 
-class SugarDecorator extends CoffeeDecorator {
-    cost(): number {
-        return super.cost() + 0.2;
-    }
-
-    ingredients(): string {
-        return super.ingredients() + ", Сахар";
-    }
+class ConcreteDecoratorB extends Decorator {
+   public operation(): string {
+      return `ConcreteDecoratorB(${super.operation()})`;
+   }
 }
 
-const coffee = new SimpleCoffee();
+function clientCode(component: Component) {
+   console.log(`RESULT: ${component.operation()}`);
+}
 
-console.log("Простой кофе:", coffee.cost(), "€", coffee.ingredients());
+const simple = new ConcreteComponent();
 
-const coffeeWithMilk = new MilkDecorator(coffee);
+console.log('Client: I\'ve got a simple component:');
 
-console.log("Кофе с молоком:", coffeeWithMilk.cost(), "€", coffeeWithMilk.ingredients());
+clientCode(simple);
 
-const coffeeWithMilkAndSugar = new SugarDecorator(coffeeWithMilk);
+console.log('');
 
-console.log("Кофе с молоком и сахаром:", coffeeWithMilkAndSugar.cost(), "€", coffeeWithMilkAndSugar.ingredients());
+const decorator1 = new ConcreteDecoratorA(simple);
+const decorator2 = new ConcreteDecoratorB(decorator1);
+
+console.log('Client: Now I\'ve got a decorated component:');
+
+clientCode(decorator2);
 ```
 
 ## Для чего нужен этот паттерн?
@@ -524,8 +517,6 @@ function clientCode(subject: Subject) {
     console.log('Клиент: Выполнение кода с реальным предметом:');
 
     subject.request();
-
-    console.log('');
 
     console.log('Клиент: Выполнение того же кода с заместителем:');
 
