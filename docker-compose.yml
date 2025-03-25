@@ -2,6 +2,7 @@ version: "3.8"
 services:
   front:
     build: ./frontend
+    container_name: front
     depends_on:
       - api
     ports:
@@ -33,7 +34,7 @@ services:
       - "6379:6379"
 
   nginx:
-    image: nginx:latest
+    image: nginx:alpine
     container_name: nginx
     depends_on:
       - front

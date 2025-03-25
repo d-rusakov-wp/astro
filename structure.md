@@ -1,53 +1,35 @@
 # Адаптер
 
-https://refactoringu.ru/ru/design-patterns/adapter.html
-
 ```ts
-export interface TaxiCalculator {
-   calculatePriceInEuros(km: number, isAirport: boolean): number;
+export interface NotificationSystem {
+   sendNotification(title: string, message: string): void;
 }
 
-export class UKTaxiCalculatorLibrary {
-   public getPriceInPounds(miles: number, fare: Fares): number {
-      if (fare === Fares.Airport) {
-         return 5 + miles * 2.15;
-      }
-      
-      return miles * 1.95;
+class SlackNotifier {
+   public sendMessage(channel: string, text: string): void {
+      console.log(`Slack: Sending to ${channel}: ${text}`);
    }
 }
 
-export enum Fares {
-   Standard,
-   Airport,
-}
+class SlackAdapter implements NotificationSystem {
+   constructor(private slack: SlackNotifier) {}
 
-class UKTaxiCalculatorLibraryAdapter implements TaxiCalculator {
-   constructor(private adaptee: UKTaxiCalculatorLibrary) {
-   }
-
-   calculatePriceInEuros(km: number, isAirport: boolean): number {
-      const miles = km * 1.609;
-      const fare = isAirport ? Fares.Airport : Fares.Standard;
-      const pounds = this.adaptee.getPriceInPounds(miles, fare);
-      const euros = pounds * 1.15;
-      
-      return euros;
+   sendNotification(title: string, message: string): void {
+      this.slack.sendMessage("#notifications", `${title}: ${message}`);
    }
 }
 
-function client(taxiCalculator: TaxiCalculator): void {
-   console.log('Calculating the price for a 15 Km run to the airport');
-  
-   const priceInEuros = taxiCalculator.calculatePriceInEuros(15, true);
-   
-   console.log(`Total price: ${priceInEuros}€`);
+function notifyUsers(notificationSystem: NotificationSystem): void {
+   notificationSystem.sendNotification(
+           "Важное уведомление",
+           "Система будет обновлена сегодня ночью"
+   );
 }
 
-const incompatibleLibrary = new UKTaxiCalculatorLibrary();
-const adaptedLibrary = new UKTaxiCalculatorLibraryAdapter(incompatibleLibrary);
+const slack = new SlackNotifier();
+const notificationSystem = new SlackAdapter(slack);
 
-client(adaptedLibrary);
+notifyUsers(notificationSystem);
 ```
 
 ## Для чего нужен этот паттерн?
@@ -73,6 +55,8 @@ client(adaptedLibrary);
 
 ## Какие плюсы?
 
+Отделяет и скрывает от клиента подробности преобразования различных интерфейсов.
+
 1. **Переиспользование кода**
     - Возможность использовать существующий код без его изменения
     - Сохранение функциональности старых компонентов
@@ -89,6 +73,8 @@ client(adaptedLibrary);
     - Простая замена адаптеров при необходимости
 
 ## Какие недостатки?
+
+Усложняет код программы из-за введения дополнительных классов.
 
 1. **Дополнительная сложность**
     - Увеличение количества классов в системе
@@ -107,61 +93,74 @@ client(adaptedLibrary);
 
 # Декоратор
 
-https://refactoringu.ru/ru/design-patterns/decorator.html
-
 ```ts
-interface Component {
-   operation(): string;
+interface Coffee {
+   cost(): number;
+   ingredients(): string;
 }
 
-class ConcreteComponent implements Component {
-   public operation(): string {
-      return 'ConcreteComponent';
+class SimpleCoffee implements Coffee {
+   public cost(): number {
+      return 1.0;
+   }
+
+   public ingredients(): string {
+      return "Кофе";
    }
 }
 
-class Decorator implements Component {
-   protected component: Component;
+abstract class CoffeeDecorator implements Coffee {
+   protected coffee: Coffee;
 
-   constructor(component: Component) {
-      this.component = component;
+   constructor(coffee: Coffee) {
+      this.coffee = coffee;
    }
 
-   public operation(): string {
-      return this.component.operation();
+   public cost(): number {
+      return this.coffee.cost();
    }
-}
 
-class ConcreteDecoratorA extends Decorator {
-   public operation(): string {
-      return `ConcreteDecoratorA(${super.operation()})`;
+   public ingredients(): string {
+      return this.coffee.ingredients();
    }
 }
 
-class ConcreteDecoratorB extends Decorator {
-   public operation(): string {
-      return `ConcreteDecoratorB(${super.operation()})`;
+class MilkDecorator extends CoffeeDecorator {
+   public cost(): number {
+      return super.cost() + 0.5;
+   }
+
+   public ingredients(): string {
+      return `${super.ingredients()}, Молоко`;
    }
 }
 
-function clientCode(component: Component) {
-   console.log(`RESULT: ${component.operation()}`);
+class SugarDecorator extends CoffeeDecorator {
+   public cost(): number {
+      return super.cost() + 0.2;
+   }
+
+   public ingredients(): string {
+      return `${super.ingredients()}, Сахар`;
+   }
 }
 
-const simple = new ConcreteComponent();
+function makeCoffee(coffee: Coffee): void {
+   console.log(`Заказ: ${coffee.ingredients()}`);
+   console.log(`Цена: ${coffee.cost()}€`);
+}
+// Пример использования
+const simpleCoffee = new SimpleCoffee();
 
-console.log('Client: I\'ve got a simple component:');
+console.log("Простой кофе:");
 
-clientCode(simple);
+makeCoffee(simpleCoffee);
 
-console.log('');
+console.log("\nКофе с молоком и сахаром:");
 
-const decorator1 = new ConcreteDecoratorA(simple);
-const decorator2 = new ConcreteDecoratorB(decorator1);
+const coffeeWithMilkAndSugar = new SugarDecorator(new MilkDecorator(simpleCoffee));
 
-console.log('Client: Now I\'ve got a decorated component:');
-
-clientCode(decorator2);
+makeCoffee(coffeeWithMilkAndSugar);
 ```
 
 ## Для чего нужен этот паттерн?
@@ -187,6 +186,11 @@ clientCode(decorator2);
 
 ## Какие плюсы?
 
+Большая гибкость, чем у наследования.
+Позволяет добавлять обязанности на лету.
+Можно добавлять несколько новых обязанностей сразу.
+Позволяет иметь несколько мелких объектов вместо одного объекта на все случаи жизни.
+
 1. **Гибкость**
     - Динамическое добавление функций
     - Возможность создавать цепочки декораторов
@@ -204,6 +208,9 @@ clientCode(decorator2);
 
 ## Какие недостатки?
 
+Трудно конфигурировать многократно обёрнутые объекты.
+Обилие крошечных классов.
+
 1. **Сложность отладки**:
     - Сложность определения источника проблемы
     - Усложнение стека вызовов
@@ -220,8 +227,6 @@ clientCode(decorator2);
     - Потенциальные проблемы с кэшированием
 
 # Фасад
-
-https://refactoringu.ru/ru/design-patterns/facade.html
 
 ```ts
 class CPU {
@@ -292,6 +297,8 @@ computer.start();
 
 ## Какие плюсы?
 
+Изолирует клиентов от компонентов сложной подсистемы.
+
 1. **Упрощение использования**:
     - Единая точка входа в систему
     - Простой интерфейс для клиентов
@@ -308,6 +315,8 @@ computer.start();
     - Изоляция сложной логики
 
 ## Какие недостатки?
+
+Фасад рискует стать божественным объектом, привязанным ко всем классам программы.
 
 1. **Ограничения**:
     - Фасад может стать слишком сложным
@@ -326,95 +335,116 @@ computer.start();
 
 # Компоновщик
 
-https://refactoringu.ru/ru/design-patterns/composite.html
-
 ```ts
-interface IComponent {
-    name: string;
-    parent?: Composite;
-    operation(): string;
-    detach(): void;
+interface IFileSystemComponent {
+   name: string;
+   parent?: FileSystemComposite;
+   getSize(): number;
+   getPath(): string;
+   detach(): void;
 }
 
-class Leaf implements IComponent {
-    name: string;
-    parent?: Composite;
+class File implements IFileSystemComponent {
+   name: string;
+   parent?: FileSystemComposite;
+   private size: number;
 
-    constructor(name: string) {
-        this.name = name;
-    }
+   constructor(name: string, size: number) {
+      this.name = name;
+      this.size = size;
+   }
 
-    operation(): string {
-        return `Лист: ${this.name}`;
-    }
+   getSize(): number {
+      return this.size;
+   }
 
-    detach(): void {
-        if (this.parent) {
-            this.parent.delete(this);
-        }
-    }
+   getPath(): string {
+      return this.name;
+   }
+
+   detach(): void {
+      if (this.parent) {
+         this.parent.delete(this);
+      }
+   }
 }
 
-class Composite implements IComponent {
-    name: string;
-    parent?: Composite;
+class FileSystemComposite implements IFileSystemComponent {
+   name: string;
+   parent?: FileSystemComposite;
+   
+   private children: IFileSystemComponent[] = [];
 
-    private children: IComponent[] = [];
+   constructor(name: string) {
+      this.name = name;
+   }
 
-    constructor(name: string) {
-        this.name = name;
-    }
+   getSize(): number {
+      return this.children.reduce((total, child) => total + child.getSize(), 0);
+   }
 
-    operation(): string {
-        const results = [this.name];
+   getPath(): string {
+      if (!this.parent) {
+         return this.name;
+      }
+      
+      return `${this.parent.getPath()}/${this.name}`;
+   }
 
-        for (const child of this.children) {
-            results.push(child.operation());
-        }
+   detach(): void {
+      if (this.parent) {
+         this.parent.delete(this);
+         this.parent = undefined;
+      }
+   }
 
-        return results.join('\n');
-    }
+   add(component: IFileSystemComponent): void {
+      component.detach();
+      component.parent = this;
+      
+      this.children.push(component);
+   }
 
-    detach(): void {
-        if (this.parent) {
-            this.parent.delete(this);
-            this.parent = undefined;
-        }
-    }
+   delete(component: IFileSystemComponent): void {
+      const index = this.children.indexOf(component);
+      
+      if (index !== -1) {
+         this.children.splice(index, 1);
+         
+         component.parent = undefined;
+      }
+   }
 
-    add(component: IComponent): void {
-        component.detach();
-        component.parent = this;
-
-        this.children.push(component);
-    }
-
-    delete(component: IComponent): void {
-        const index = this.children.indexOf(component);
-
-        if (index !== -1) {
-            this.children.splice(index, 1);
-
-            component.parent = undefined;
-        }
-    }
+   listContents(indent: string = ""): void {
+      this.children.forEach(child => {
+         if (child instanceof File) {
+            console.log(`${indent}  └─ ${child.name} (размер: ${child.getSize()} байт)`);
+         } else {
+            child.listContents(indent + "  ");
+         }
+      });
+   }
 }
 
-const root = new Composite("Корневая папка");
-const folder1 = new Composite("Папка 1");
-const folder2 = new Composite("Папка 2");
-const file1 = new Leaf("файл1.txt");
-const file2 = new Leaf("файл2.txt");
-const file3 = new Leaf("файл3.txt");
+const root = new FileSystemComposite("root");
+const documents = new FileSystemComposite("documents");
+const images = new FileSystemComposite("images");
+const work = new FileSystemComposite("work");
 
-root.add(folder1);
-root.add(folder2);
-folder1.add(file1);
-folder1.add(file2);
-folder2.add(file3);
+root.add(documents);
+root.add(images);
+root.add(work);
 
-console.log("Структура файловой системы:");
-console.log(root.operation());
+documents.add(new File("resume.pdf", 1024 * 1024));
+documents.add(new File("notes.txt", 1024));
+
+images.add(new File("photo.jpg", 5 * 1024 * 1024));
+images.add(new File("avatar.png", 2 * 1024 * 1024));
+
+work.add(new File("project.zip", 10 * 1024 * 1024)); 
+work.add(new File("readme.md", 512));
+
+root.listContents();
 ```
 
 ## Для чего нужен этот паттерн?
@@ -422,6 +452,9 @@ console.log(root.operation());
 Компоновщик - это структурный паттерн проектирования, который позволяет работать с объектами и их группами единообразно. Он создает древовидную структуру объектов, где каждый узел может быть либо простым объектом (лист), либо группой объектов (композит).
 
 ## В каких случаях стоит использовать?
+
+Упрощает архитектуру клиента при работе со сложным деревом компонентов.
+Облегчает добавление новых видов компонентов.
 
 1. **Иерархические структуры**:
     - Файловые системы
@@ -458,6 +491,8 @@ console.log(root.operation());
 
 ## Какие недостатки?
 
+Создаёт слишком общий дизайн классов.
+
 1. **Сложность реализации**:
     - Необходимость поддержки сложной структуры
     - Сложность отладки
@@ -475,57 +510,64 @@ console.log(root.operation());
 
 # Заместитель
 
-https://refactoringu.ru/ru/design-patterns/proxy.html
-
 ```ts
-interface Subject {
-    request(): void;
+interface DataProvider {
+   getData(key: string): string;
+   setData(key: string, value: string): void;
 }
 
-class RealSubject implements Subject {
-    public request(): void {
-        console.log('RealSubject: Обработка запроса.');
-    }
+class RealDataProvider implements DataProvider {
+   private data: Map<string, string>;
+
+   constructor() {
+      this.data = new Map<string, string>();
+   }
+
+   getData(key: string): string {
+      return this.data.get(key) || '';
+   }
+
+   setData(key: string, value: string): void {
+      this.data.set(key, value);
+   }
 }
 
-class Proxy implements Subject {
-    private realSubject: RealSubject;
+class CachingProxy implements DataProvider {
+   private realProvider: RealDataProvider;
+   private cache: Map<string, string>;
 
-    constructor(realSubject: RealSubject) {
-        this.realSubject = realSubject;
-    }
+   constructor(realProvider: RealDataProvider) {
+      this.realProvider = realProvider;
+      this.cache = new Map<string, string>();
+   }
 
-    public request(): void {
-        if (this.checkAccess()) {
-            this.realSubject.request();
-            this.logAccess();
-        }
-    }
+   getData(key: string): string {
+      if (this.cache.has(key)) {
+         return this.cache.get(key)!;
+      }
 
-    private checkAccess(): boolean {
-        console.log('Proxy: Проверка доступа перед обработкой запроса.');
+      const data = this.realProvider.getData(key);
+      this.cache.set(key, data);
+      
+      return data;
+   }
 
-        return true;
-    }
-
-    private logAccess(): void {
-        console.log('Proxy: Логирование времени запроса.');
-    }
+   setData(key: string, value: string): void {
+      this.cache.delete(key);
+      this.realProvider.setData(key, value);
+   }
 }
 
-function clientCode(subject: Subject) {
-    console.log('Клиент: Выполнение кода с реальным предметом:');
+function clientCode(provider: DataProvider) {
+   const data1 = provider.getData('user1');
 
-    subject.request();
+   provider.setData('user1', 'John Doe');
 
-    console.log('Клиент: Выполнение того же кода с заместителем:');
-
-    const proxy = new Proxy(new RealSubject());
-
-    proxy.request();
+   const data2 = provider.getData('user1');
 }
 
-clientCode(new RealSubject());
+clientCode(new RealDataProvider());
+clientCode(new CachingProxy(new RealDataProvider()));
 ```
 
 ## Для чего нужен этот паттерн?
@@ -552,6 +594,10 @@ clientCode(new RealSubject());
 
 ## Какие плюсы?
 
+Позволяет контролировать сервисный объект незаметно для клиента.
+Может работать, даже если сервисный объект ещё не создан.
+Может контролировать жизненный цикл служебного объекта.
+
 1. **Гибкость**:
     - Возможность добавления новой функциональности без изменения клиентского кода
     - Легкое переключение между реальным объектом и заместителем
@@ -568,6 +614,9 @@ clientCode(new RealSubject());
     - Логирование операций
 
 ## Какие недостатки?
+
+Усложняет код программы из-за введения дополнительных классов.
+Увеличивает время отклика от сервиса.
 
 1. **Сложность**:
     - Дополнительный уровень абстракции
