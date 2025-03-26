@@ -8,9 +8,14 @@ services:
     ports:
       - "3000:3000"
     environment:
+      - NODE_ENV=development
       - REDIS_URL=${REDIS_URL:-redis://redis:6379}
     networks:
       - network-backend
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+    command: npm run dev
 
   api:
     build: ./backend
@@ -18,9 +23,9 @@ services:
       - redis
     ports:
       - "3001:3001"
-    networks: 
-     - network-backend
-  
+    networks:
+      - network-backend
+
   redis:
     image: redis:alpine
     container_name: redis
@@ -31,7 +36,7 @@ services:
       REDIS_ROOT_USERNAME: username
       REDIS_ROOT_PASSWORD: password
     networks:
-     - network-backend
+      - network-backend
     ports:
       - "6379:6379"
 

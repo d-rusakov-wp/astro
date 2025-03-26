@@ -1,16 +1,23 @@
 version: "3.8"
 services:
   front:
-    build: ./frontend
+    build:
+      context: ./frontend
+      target: production
     container_name: front
     depends_on:
       - api
     ports:
       - "3000:3000"
     environment:
+      - NODE_ENV=production
       - REDIS_URL=${REDIS_URL:-redis://redis:6379}
     networks:
       - network-backend
+    volumes:
+      - ./front:/app
+      - /app/node_modules
+    command: npm run build
 
   api:
     build: ./backend
@@ -18,9 +25,9 @@ services:
       - redis
     ports:
       - "3001:3001"
-    networks: 
-     - network-backend
-  
+    networks:
+      - network-backend
+
   redis:
     image: redis:alpine
     container_name: redis
@@ -31,7 +38,7 @@ services:
       REDIS_ROOT_USERNAME: username
       REDIS_ROOT_PASSWORD: password
     networks:
-     - network-backend
+      - network-backend
     ports:
       - "6379:6379"
 
