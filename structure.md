@@ -94,73 +94,158 @@ notifyUsers(notificationSystem);
 # Декоратор
 
 ```ts
-interface Coffee {
-   cost(): number;
-   ingredients(): string;
-}
-
-class SimpleCoffee implements Coffee {
-   public cost(): number {
-      return 1.0;
-   }
-
-   public ingredients(): string {
-      return "Кофе";
+class APIHandler {
+   handle(url, options) {
+      return new Promise((resolve) => {
+         setTimeout(() => {
+            resolve({ status: 200, data: { message: 'Успешный ответ' } });
+         }, 500);
+      });
    }
 }
 
-abstract class CoffeeDecorator implements Coffee {
-   protected coffee: Coffee;
-
-   constructor(coffee: Coffee) {
-      this.coffee = coffee;
+class APIHandlerDecorator {
+   constructor(handler) {
+      this.handler = handler;
    }
 
-   public cost(): number {
-      return this.coffee.cost();
-   }
-
-   public ingredients(): string {
-      return this.coffee.ingredients();
+   handle(url, options) {
+      return this.handler.handle(url, options);
    }
 }
 
-class MilkDecorator extends CoffeeDecorator {
-   public cost(): number {
-      return super.cost() + 0.5;
+class AuthDecorator extends APIHandlerDecorator {
+   constructor(handler, token) {
+      super(handler);
+      
+      this.token = token;
    }
 
-   public ingredients(): string {
-      return `${super.ingredients()}, Молоко`;
+   handle(url, options) {
+      console.log('Добавление токена авторизации');
+      
+      options.headers = {
+         ...options.headers,
+         'Authorization': `Bearer ${this.token}`
+      };
+      
+      return super.handle(url, options);
    }
 }
 
-class SugarDecorator extends CoffeeDecorator {
-   public cost(): number {
-      return super.cost() + 0.2;
-   }
-
-   public ingredients(): string {
-      return `${super.ingredients()}, Сахар`;
+class ErrorHandlingDecorator extends APIHandlerDecorator {
+   handle(url, options) {
+      return new Promise((resolve, reject) => {
+         this.handler.handle(url, options)
+                 .then(response => {
+                    if (response.status >= 400) {
+                       reject(new Error(`Ошибка ${response.status}: ${response.data.message}`));
+                    }
+                    
+                    resolve(response);
+                 })
+                 .catch(error => {
+                    reject(error);
+                 });
+      });
    }
 }
 
-function makeCoffee(coffee: Coffee): void {
-   console.log(`Заказ: ${coffee.ingredients()}`);
-   console.log(`Цена: ${coffee.cost()}€`);
+class CacheDecorator extends APIHandlerDecorator {
+   constructor(handler) {
+      super(handler);
+      
+      this.cache = new Map();
+   }
+
+   handle(url, options) {
+      const key = `${url}-${JSON.stringify(options)}`;
+
+      if (this.cache.has(key)) {
+         console.log('Использование кэшированного ответа');
+         
+         return Promise.resolve(this.cache.get(key));
+      }
+
+      return this.handler.handle(url, options)
+              .then(response => {
+                 this.cache.set(key, response);
+                 
+                 return response;
+              });
+   }
 }
-// Пример использования
-const simpleCoffee = new SimpleCoffee();
 
-console.log("Простой кофе:");
+class RetryDecorator extends APIHandlerDecorator {
+   constructor(handler, maxRetries = 3) {
+      super(handler);
+      this.maxRetries = maxRetries;
+   }
 
-makeCoffee(simpleCoffee);
+   handle(url, options) {
+      let attempts = 0;
+      
+      const retry = () => {
+         attempts++;
 
-console.log("\nКофе с молоком и сахаром:");
+         return this.handler.handle(url, options)
+                 .catch(error => {
+                    if (attempts === this.maxRetries) {
+                       throw error;
+                    }
+                    return new Promise(resolve => setTimeout(resolve, 1000 * attempts))
+                            .then(() => retry());
+                 });
+      };
+      
+      return retry();
+   }
+}
 
-const coffeeWithMilkAndSugar = new SugarDecorator(new MilkDecorator(simpleCoffee));
+function demo() {
+   const baseHandler = new APIHandler();
+   
+   baseHandler.handle('https://api.example.com/data', {})
+           .then(response => {
+              console.log('Ответ:', response);
+           });
 
-makeCoffee(coffeeWithMilkAndSugar);
+   const authHandler = new AuthDecorator(baseHandler, 'token123');
+   
+   authHandler.handle('https://api.example.com/protected', {})
+           .then(response => {
+              console.log('Ответ:', response);
+           });
+
+   const cacheHandler = new CacheDecorator(baseHandler);
+   
+   cacheHandler.handle('https://api.example.com/data', {})
+           .then(response => {
+              console.log('Ответ:', response);
+           });
+
+   const retryHandler = new RetryDecorator(baseHandler);
+  
+   retryHandler.handle('https://api.example.com/unstable', {})
+           .then(response => {
+              console.log('Ответ:', response);
+           });
+
+
+   const fullHandler = new ErrorHandlingDecorator(
+           new CacheDecorator(
+                   new AuthDecorator(
+                           new RetryDecorator(baseHandler),
+                           'token123'
+                   )
+           )
+   );
+   
+   fullHandler.handle('https://api.example.com/data', {})
+           .then(response => {
+              console.log('Ответ:', response);
+           });
+}
 ```
 
 ## Для чего нужен этот паттерн?
@@ -511,27 +596,33 @@ root.listContents();
 # Заместитель
 
 ```ts
+// Интерфейс для провайдера данных
 interface DataProvider {
-   getData(key: string): string;
+   getData(key: string): string | null;
    setData(key: string, value: string): void;
 }
 
+// Реальный провайдер данных
 class RealDataProvider implements DataProvider {
-   private data: Map<string, string>;
+   private storage: Storage;
 
-   constructor() {
-      this.data = new Map<string, string>();
+   constructor(storageType: 'localStorage' | 'sessionStorage' = 'localStorage') {
+      this.storage = storageType === 'localStorage' ? localStorage : sessionStorage;
    }
 
-   getData(key: string): string {
-      return this.data.get(key) || '';
+   getData(key: string): string | null {
+      const value = this.storage.getItem(key);
+      console.log(`Получение данных из ${this.storage}: ${key}`);
+      return value || null;
    }
 
    setData(key: string, value: string): void {
-      this.data.set(key, value);
+      console.log(`Сохранение данных в ${this.storage}: ${key}`);
+      this.storage.setItem(key, value);
    }
 }
 
+// Прокси для кэширования данных
 class CachingProxy implements DataProvider {
    private realProvider: RealDataProvider;
    private cache: Map<string, string>;
@@ -541,21 +632,40 @@ class CachingProxy implements DataProvider {
       this.cache = new Map<string, string>();
    }
 
-   getData(key: string): string {
+   getData(key: string): string | null {
+      // Проверяем кэш
       if (this.cache.has(key)) {
+         console.log('Использование кэшированных данных:', key);
          return this.cache.get(key)!;
       }
 
+      // Получаем данные из реального провайдера и сохраняем в кэш
       const data = this.realProvider.getData(key);
-      this.cache.set(key, data);
-      
+      if (data !== null) {
+         this.cache.set(key, data);
+      }
+
       return data;
    }
 
    setData(key: string, value: string): void {
+      // Очищаем кэш при обновлении данных
+      console.log('Очистка кэша для ключа:', key);
       this.cache.delete(key);
       this.realProvider.setData(key, value);
    }
+}
+
+function demo() {
+   const realProvider = new RealDataProvider();
+   
+   clientCode(realProvider);
+
+   const proxyProvider = new CachingProxy(realProvider);
+   
+   clientCode(proxyProvider);
+
+   const cachedData = proxyProvider.getData('user1');
 }
 
 function clientCode(provider: DataProvider) {
@@ -565,9 +675,6 @@ function clientCode(provider: DataProvider) {
 
    const data2 = provider.getData('user1');
 }
-
-clientCode(new RealDataProvider());
-clientCode(new CachingProxy(new RealDataProvider()));
 ```
 
 ## Для чего нужен этот паттерн?
