@@ -1,35 +1,40 @@
 # Адаптер
 
 ```ts
-export interface NotificationSystem {
-   sendNotification(title: string, message: string): void;
+class ServerResponse {
+    constructor() {
+        this.entries = [
+            {
+                user_name: 'Александр',
+                email_address: 'some@site.com',
+                ID: 'уникальный id'
+            },
+            {
+                user_name: 'Мария',
+                email_address: 'some@other-site.com',
+                ID: 'другой уникальный id'
+            }
+        ];
+    }
 }
 
-class SlackNotifier {
-   public sendMessage(channel: string, text: string): void {
-      console.log(`Slack: Sending to ${channel}: ${text}`);
-   }
+class UserDataAdapter {
+    constructor(response) {
+        this.response = response;
+    }
+
+    adapt() {
+        return this.response.entries.map((entry) => ({
+            userName: entry.user_name,
+            email: entry.email_address,
+            id: entry.ID
+        }));
+    }
 }
 
-class SlackAdapter implements NotificationSystem {
-   constructor(private slack: SlackNotifier) {}
-
-   sendNotification(title: string, message: string): void {
-      this.slack.sendMessage("#notifications", `${title}: ${message}`);
-   }
-}
-
-function notifyUsers(notificationSystem: NotificationSystem): void {
-   notificationSystem.sendNotification(
-           "Важное уведомление",
-           "Система будет обновлена сегодня ночью"
-   );
-}
-
-const slack = new SlackNotifier();
-const notificationSystem = new SlackAdapter(slack);
-
-notifyUsers(notificationSystem);
+const serverResponse = new ServerResponse();
+const adapter = new UserDataAdapter(serverResponse);
+const adaptedUsers = adapter.adapt();
 ```
 
 ## Для чего нужен этот паттерн?
@@ -55,7 +60,7 @@ notifyUsers(notificationSystem);
 
 ## Какие плюсы?
 
-Отделяет и скрывает от клиента подробности преобразования различных интерфейсов.
+- Отделяет и скрывает от клиента подробности преобразования различных интерфейсов.
 
 1. **Переиспользование кода**
     - Возможность использовать существующий код без его изменения
@@ -74,7 +79,7 @@ notifyUsers(notificationSystem);
 
 ## Какие недостатки?
 
-Усложняет код программы из-за введения дополнительных классов.
+- Усложняет код программы из-за введения дополнительных классов.
 
 1. **Дополнительная сложность**
     - Увеличение количества классов в системе
@@ -94,158 +99,85 @@ notifyUsers(notificationSystem);
 # Декоратор
 
 ```ts
-class APIHandler {
-   handle(url, options) {
-      return new Promise((resolve) => {
-         setTimeout(() => {
-            resolve({ status: 200, data: { message: 'Успешный ответ' } });
-         }, 500);
-      });
-   }
+interface FormComponent {
+    submit(data: any): Promise<void>;
+    render(): string;
 }
 
-class APIHandlerDecorator {
-   constructor(handler) {
-      this.handler = handler;
-   }
+class BasicForm implements FormComponent {
+    private formData: any = {};
 
-   handle(url, options) {
-      return this.handler.handle(url, options);
-   }
+    submit(data: any): Promise<void> {
+        this.formData = data;
+        return Promise.resolve();
+    }
+
+    render(): string {
+        return `<form>
+            <input type="text" name="username" />
+            <button type="submit">Отправить</button>
+        </form>`;
+    }
 }
 
-class AuthDecorator extends APIHandlerDecorator {
-   constructor(handler, token) {
-      super(handler);
-      
-      this.token = token;
-   }
+class WithLoadingDecorator implements FormComponent {
+    private component: FormComponent;
 
-   handle(url, options) {
-      console.log('Добавление токена авторизации');
-      
-      options.headers = {
-         ...options.headers,
-         'Authorization': `Bearer ${this.token}`
-      };
-      
-      return super.handle(url, options);
-   }
+    constructor(component: FormComponent) {
+        this.component = component;
+    }
+
+    async submit(data: any): Promise<void> {
+        console.log('Начало загрузки...');
+        await this.component.submit(data);
+        console.log('Загрузка завершена');
+    }
+
+    render(): string {
+        return `
+            <div class="form-container">
+                ${this.component.render()}
+                <div class="loading-indicator" style="display: none;">
+                    Загрузка...
+                </div>
+            </div>
+        `;
+    }
 }
 
-class ErrorHandlingDecorator extends APIHandlerDecorator {
-   handle(url, options) {
-      return new Promise((resolve, reject) => {
-         this.handler.handle(url, options)
-                 .then(response => {
-                    if (response.status >= 400) {
-                       reject(new Error(`Ошибка ${response.status}: ${response.data.message}`));
-                    }
-                    
-                    resolve(response);
-                 })
-                 .catch(error => {
-                    reject(error);
-                 });
-      });
-   }
+class WithErrorHandlingDecorator implements FormComponent {
+    private component: FormComponent;
+
+    constructor(component: FormComponent) {
+        this.component = component;
+    }
+
+    async submit(data: any): Promise<void> {
+        try {
+            await this.component.submit(data);
+            console.log('Форма успешно отправлена');
+        } catch (error) {
+            console.error('Ошибка при отправке формы:', error);
+        }
+    }
+
+    render(): string {
+        return `
+            <div class="form-container">
+                ${this.component.render()}
+                <div class="error-message" style="display: none; color: red;">
+                    Произошла ошибка при отправке
+                </div>
+            </div>
+        `;
+    }
 }
 
-class CacheDecorator extends APIHandlerDecorator {
-   constructor(handler) {
-      super(handler);
-      
-      this.cache = new Map();
-   }
+const basicForm = new BasicForm();
+const formWithLoading = new WithLoadingDecorator(basicForm);
+const formWithLoadingAndErrors = new WithErrorHandlingDecorator(formWithLoading);
 
-   handle(url, options) {
-      const key = `${url}-${JSON.stringify(options)}`;
-
-      if (this.cache.has(key)) {
-         console.log('Использование кэшированного ответа');
-         
-         return Promise.resolve(this.cache.get(key));
-      }
-
-      return this.handler.handle(url, options)
-              .then(response => {
-                 this.cache.set(key, response);
-                 
-                 return response;
-              });
-   }
-}
-
-class RetryDecorator extends APIHandlerDecorator {
-   constructor(handler, maxRetries = 3) {
-      super(handler);
-      this.maxRetries = maxRetries;
-   }
-
-   handle(url, options) {
-      let attempts = 0;
-      
-      const retry = () => {
-         attempts++;
-
-         return this.handler.handle(url, options)
-                 .catch(error => {
-                    if (attempts === this.maxRetries) {
-                       throw error;
-                    }
-                    return new Promise(resolve => setTimeout(resolve, 1000 * attempts))
-                            .then(() => retry());
-                 });
-      };
-      
-      return retry();
-   }
-}
-
-function demo() {
-   const baseHandler = new APIHandler();
-   
-   baseHandler.handle('https://api.example.com/data', {})
-           .then(response => {
-              console.log('Ответ:', response);
-           });
-
-   const authHandler = new AuthDecorator(baseHandler, 'token123');
-   
-   authHandler.handle('https://api.example.com/protected', {})
-           .then(response => {
-              console.log('Ответ:', response);
-           });
-
-   const cacheHandler = new CacheDecorator(baseHandler);
-   
-   cacheHandler.handle('https://api.example.com/data', {})
-           .then(response => {
-              console.log('Ответ:', response);
-           });
-
-   const retryHandler = new RetryDecorator(baseHandler);
-  
-   retryHandler.handle('https://api.example.com/unstable', {})
-           .then(response => {
-              console.log('Ответ:', response);
-           });
-
-
-   const fullHandler = new ErrorHandlingDecorator(
-           new CacheDecorator(
-                   new AuthDecorator(
-                           new RetryDecorator(baseHandler),
-                           'token123'
-                   )
-           )
-   );
-   
-   fullHandler.handle('https://api.example.com/data', {})
-           .then(response => {
-              console.log('Ответ:', response);
-           });
-}
+formWithLoadingAndErrors.submit({ username: 'test' });
 ```
 
 ## Для чего нужен этот паттерн?
@@ -271,10 +203,10 @@ function demo() {
 
 ## Какие плюсы?
 
-Большая гибкость, чем у наследования.
-Позволяет добавлять обязанности на лету.
-Можно добавлять несколько новых обязанностей сразу.
-Позволяет иметь несколько мелких объектов вместо одного объекта на все случаи жизни.
+- Большая гибкость, чем у наследования.
+- Позволяет добавлять обязанности на лету.
+- Можно добавлять несколько новых обязанностей сразу.
+- Позволяет иметь несколько мелких объектов вместо одного объекта на все случаи жизни.
 
 1. **Гибкость**
     - Динамическое добавление функций
@@ -293,8 +225,8 @@ function demo() {
 
 ## Какие недостатки?
 
-Трудно конфигурировать многократно обёрнутые объекты.
-Обилие крошечных классов.
+- Трудно конфигурировать многократно обёрнутые объекты.
+- Обилие крошечных классов.
 
 1. **Сложность отладки**:
     - Сложность определения источника проблемы
@@ -314,49 +246,95 @@ function demo() {
 # Фасад
 
 ```ts
-class CPU {
-    execute() {
-        console.log("CPU выполняет инструкции");
-    }
-}
-
-class Memory {
-    load() {
-        console.log("Память загружает данные");
-    }
-}
-
-class HardDrive {
-    read() {
-        console.log("Диск считывает данные");
-    }
-}
-
-class Computer {
-    private cpu: CPU;
-    private memory: Memory;
-    private hardDrive: HardDrive;
-
+// Сервисы подсистемы
+class AuthService {
     constructor() {
-        this.cpu = new CPU();
-        this.memory = new Memory();
-        this.hardDrive = new HardDrive();
+        this.token = null;
     }
 
-    start() {
-        console.log("Запуск компьютера...");
+    async login(credentials) {
+        // Имитация логина
+        this.token = 'mock-token';
+        return this.token;
+    }
 
-        this.cpu.execute();
-        this.memory.load();
-        this.hardDrive.read();
-
-        console.log("Компьютер запущен!");
+    async logout() {
+        this.token = null;
     }
 }
 
-const computer = new Computer();
+class CacheService {
+    constructor() {
+        this.cache = new Map();
+    }
 
-computer.start();
+    set(key, value) {
+        this.cache.set(key, value);
+    }
+
+    get(key) {
+        return this.cache.get(key);
+    }
+}
+
+class LoggerService {
+    log(message) {
+        console.log(`[${new Date().toISOString()}] ${message}`);
+    }
+
+    error(message, error) {
+        console.error(`[${new Date().toISOString()}] ${message}`, error);
+    }
+}
+
+class APIService {
+    constructor() {
+        this.authService = new AuthService();
+        this.cacheService = new CacheService();
+        this.loggerService = new LoggerService();
+    }
+
+    async getUserProfile(userId) {
+        try {
+            const cachedProfile = this.cacheService.get(`profile_${userId}`);
+
+            if (cachedProfile) {
+                this.loggerService.log('Возвращаем профиль из кэша');
+
+                return cachedProfile;
+            }
+
+            if (!this.authService.token) {
+                await this.authService.login({ username: 'user', password: 'pass' });
+            }
+
+            this.loggerService.log('Запрашиваем профиль пользователя');
+            
+            const profile = { id: userId, name: 'Иван Петров' };
+            this.cacheService.set(`profile_${userId}`, profile);
+            
+            return profile;
+        } catch (error) {
+            this.loggerService.error('Ошибка при получении профиля', error);
+
+            throw error;
+        }
+    }
+}
+
+const apiService = new APIService();
+
+async function demo() {
+    try {
+        const profile = await apiService.getUserProfile(1);
+        
+        const cachedProfile = await apiService.getUserProfile(1);
+        
+        await apiService.authService.logout();
+    } catch (error) {
+        console.error('Ошибка:', error);
+    }
+}
 ```
 
 ## Для чего нужен этот паттерн?
@@ -382,7 +360,7 @@ computer.start();
 
 ## Какие плюсы?
 
-Изолирует клиентов от компонентов сложной подсистемы.
+- Изолирует клиентов от компонентов сложной подсистемы.
 
 1. **Упрощение использования**:
     - Единая точка входа в систему
@@ -401,7 +379,7 @@ computer.start();
 
 ## Какие недостатки?
 
-Фасад рискует стать божественным объектом, привязанным ко всем классам программы.
+- Фасад рискует стать божественным объектом, привязанным ко всем классам программы.
 
 1. **Ограничения**:
     - Фасад может стать слишком сложным
@@ -421,115 +399,86 @@ computer.start();
 # Компоновщик
 
 ```ts
-interface IFileSystemComponent {
-   name: string;
-   parent?: FileSystemComposite;
-   getSize(): number;
-   getPath(): string;
-   detach(): void;
+interface Component {
+    render(): void;
+    add(component: Component): void;
+    remove(component: Component): void;
+    getChild(index: number): Component;
 }
 
-class File implements IFileSystemComponent {
-   name: string;
-   parent?: FileSystemComposite;
-   private size: number;
+abstract class BaseComponent implements Component {
+    protected children: Component[] = [];
 
-   constructor(name: string, size: number) {
-      this.name = name;
-      this.size = size;
-   }
+    render(): void {
+        this.doRender();
+        this.children.forEach(child => child.render());
+    }
 
-   getSize(): number {
-      return this.size;
-   }
+    add(component: Component): void {
+        this.children.push(component);
+    }
 
-   getPath(): string {
-      return this.name;
-   }
+    remove(component: Component): void {
+        const index = this.children.indexOf(component);
+        if (index !== -1) {
+            this.children.splice(index, 1);
+        }
+    }
 
-   detach(): void {
-      if (this.parent) {
-         this.parent.delete(this);
-      }
-   }
+    getChild(index: number): Component {
+        return this.children[index];
+    }
+
+    protected abstract doRender(): void;
 }
 
-class FileSystemComposite implements IFileSystemComponent {
-   name: string;
-   parent?: FileSystemComposite;
-   
-   private children: IFileSystemComponent[] = [];
+class Container extends BaseComponent {
+    private className: string;
 
-   constructor(name: string) {
-      this.name = name;
-   }
+    constructor(className: string = '') {
+        super();
+        this.className = className;
+    }
 
-   getSize(): number {
-      return this.children.reduce((total, child) => total + child.getSize(), 0);
-   }
-
-   getPath(): string {
-      if (!this.parent) {
-         return this.name;
-      }
-      
-      return `${this.parent.getPath()}/${this.name}`;
-   }
-
-   detach(): void {
-      if (this.parent) {
-         this.parent.delete(this);
-         this.parent = undefined;
-      }
-   }
-
-   add(component: IFileSystemComponent): void {
-      component.detach();
-      component.parent = this;
-      
-      this.children.push(component);
-   }
-
-   delete(component: IFileSystemComponent): void {
-      const index = this.children.indexOf(component);
-      
-      if (index !== -1) {
-         this.children.splice(index, 1);
-         
-         component.parent = undefined;
-      }
-   }
-
-   listContents(indent: string = ""): void {
-      this.children.forEach(child => {
-         if (child instanceof File) {
-            console.log(`${indent}  └─ ${child.name} (размер: ${child.getSize()} байт)`);
-         } else {
-            child.listContents(indent + "  ");
-         }
-      });
-   }
+    protected doRender(): void {
+        console.log(`Рендеринг контейнера с классом ${this.className}`);
+    }
 }
 
-const root = new FileSystemComposite("root");
-const documents = new FileSystemComposite("documents");
-const images = new FileSystemComposite("images");
-const work = new FileSystemComposite("work");
+class Button extends BaseComponent {
+    private label: string;
 
-root.add(documents);
-root.add(images);
-root.add(work);
+    constructor(label: string) {
+        super();
+        this.label = label;
+    }
 
-documents.add(new File("resume.pdf", 1024 * 1024));
-documents.add(new File("notes.txt", 1024));
+    protected doRender(): void {
+        console.log(`Рендеринг кнопки "${this.label}"`);
+    }
 
-images.add(new File("photo.jpg", 5 * 1024 * 1024));
-images.add(new File("avatar.png", 2 * 1024 * 1024));
+    add(component: Component): void {
+        throw new Error('Кнопка не может содержать дочерние элементы');
+    }
 
-work.add(new File("project.zip", 10 * 1024 * 1024)); 
-work.add(new File("readme.md", 512));
+    remove(component: Component): void {
+        throw new Error('Кнопка не может удалять дочерние элементы');
+    }
 
-root.listContents();
+    getChild(index: number): Component {
+        throw new Error('У кнопки нет дочерних элементов');
+    }
+}
+
+const container = new Container('main-container');
+
+const loginButton = new Button('Войти');
+const registerButton = new Button('Зарегистрироваться');
+
+container.add(loginButton);
+container.add(registerButton);
+
+container.render();
 ```
 
 ## Для чего нужен этот паттерн?
@@ -538,8 +487,8 @@ root.listContents();
 
 ## В каких случаях стоит использовать?
 
-Упрощает архитектуру клиента при работе со сложным деревом компонентов.
-Облегчает добавление новых видов компонентов.
+- Упрощает архитектуру клиента при работе со сложным деревом компонентов.
+- Облегчает добавление новых видов компонентов.
 
 1. **Иерархические структуры**:
     - Файловые системы
@@ -576,7 +525,7 @@ root.listContents();
 
 ## Какие недостатки?
 
-Создаёт слишком общий дизайн классов.
+- Создаёт слишком общий дизайн классов.
 
 1. **Сложность реализации**:
     - Необходимость поддержки сложной структуры
@@ -701,9 +650,9 @@ function clientCode(provider: DataProvider) {
 
 ## Какие плюсы?
 
-Позволяет контролировать сервисный объект незаметно для клиента.
-Может работать, даже если сервисный объект ещё не создан.
-Может контролировать жизненный цикл служебного объекта.
+- Позволяет контролировать сервисный объект незаметно для клиента.
+- Может работать, даже если сервисный объект ещё не создан.
+- Может контролировать жизненный цикл служебного объекта.
 
 1. **Гибкость**:
     - Возможность добавления новой функциональности без изменения клиентского кода
@@ -722,8 +671,8 @@ function clientCode(provider: DataProvider) {
 
 ## Какие недостатки?
 
-Усложняет код программы из-за введения дополнительных классов.
-Увеличивает время отклика от сервиса.
+- Усложняет код программы из-за введения дополнительных классов.
+- Увеличивает время отклика от сервиса.
 
 1. **Сложность**:
     - Дополнительный уровень абстракции
@@ -743,9 +692,201 @@ function clientCode(provider: DataProvider) {
 
 # Легковес
 
-https://refactoringu.ru/ru/design-patterns/flyweight.html
+```ts
+interface FileIcon {
+    display(fileName: string): void;
+}
+
+class FileIconImpl implements FileIcon {
+    private readonly type: string;
+    private readonly size: number;
+    private readonly color: string;
+
+    constructor(type: string, size: number, color: string) {
+        this.type = type;
+        this.size = size;
+        this.color = color;
+    }
+
+    display(fileName: string): void {
+        console.log(`Отображение иконки ${this.type} размером ${this.size} для файла ${fileName}`);
+    }
+}
+
+class IconFactory {
+    private static readonly icons: Map<string, FileIcon> = new Map();
+
+    static getIcon(type: string, size: number, color: string): FileIcon {
+        const key = `${type}-${size}-${color}`;
+
+        if (!this.icons.has(key)) {
+            this.icons.set(key, new FileIconImpl(type, size, color));
+        }
+
+        return this.icons.get(key)!;
+    }
+}
+
+class File {
+    constructor(
+        private name: string,
+        private icon: FileIcon
+    ) {}
+
+    display(): void {
+        this.icon.display(this.name);
+    }
+}
+
+const factory = IconFactory;
+
+const pdfIcon = factory.getIcon('PDF', 32, 'red');
+const docIcon = factory.getIcon('DOC', 32, 'blue');
+
+const file1 = new File('document1.pdf', pdfIcon);
+const file2 = new File('document2.pdf', pdfIcon);
+const file3 = new File('document3.doc', docIcon);
+
+file1.display();
+file2.display();
+file3.display();
+```
+
+## Для чего нужен этот паттерн?
+
+Легковес — это структурный паттерн проектирования, который позволяет вместить бóльшее количество объектов в отведённую оперативную память. Легковес экономит память, разделяя общее состояние объектов между собой, вместо хранения одинаковых данных в каждом объекте.
+
+## В каких случаях стоит использовать?
+
+Легковес эффективен в следующих случаях:
+- В приложении используется большое количество объектов
+- Есть проблема с нехваткой оперативной памяти
+- Большую часть состояния объектов можно вынести за пределы их классов
+- Большие группы объектов можно заменить относительно небольшим количеством разделяемых объектов
+
+## Какие плюсы?
+
+- Экономит оперативную память
+
+1. Экономия памяти:
+- Общие данные хранятся в одном месте
+- Множество объектов могут ссылаться на одни и те же данные
+
+2. Улучшение производительности:
+- Снижение потребления памяти
+- Меньше объектов для сборки мусора
+
+## Какие недостатки?
+
+- Расходует процессорное время на поиск/вычисление контекста.
+- Усложняет код программы из-за введения множества дополнительных классов.
+
+1. Дополнительные накладные расходы:
+- Расход процессорного времени на поиск/вычисление контекста
+- Сложность реализации и поддержки
+
+2. Усложнение кода:
+- Необходимость разделения состояния на разделяемое и уникальное
+- Дополнительные классы и абстракции
 
 
 # Мост
 
-https://refactoringu.ru/ru/design-patterns/bridge.html
+```ts
+interface IMessageSender {
+    send(message: string): void;
+}
+
+class EmailSender implements IMessageSender {
+    send(message: string): void {
+        console.log(`Отправка email: ${message}`);
+    }
+}
+
+class SMSSender implements IMessageSender {
+    send(message: string): void {
+        console.log(`Отправка SMS: ${message}`);
+    }
+}
+
+interface IMessage {
+    send(): void;
+}
+
+class SimpleMessage implements IMessage {
+    private sender: IMessageSender;
+    
+    constructor(sender: IMessageSender) {
+        this.sender = sender;
+    }
+    
+    send(): void {
+        this.sender.send("Простое сообщение");
+    }
+}
+
+class UrgentMessage implements IMessage {
+    private sender: IMessageSender;
+    
+    constructor(sender: IMessageSender) {
+        this.sender = sender;
+    }
+    
+    send(): void {
+        this.sender.send("СРОЧНО: Простое сообщение");
+    }
+}
+
+const emailSender = new EmailSender();
+const smsSender = new SMSSender();
+
+const emailMessage = new SimpleMessage(emailSender);
+const smsMessage = new UrgentMessage(smsSender);
+
+emailMessage.send();
+smsMessage.send();
+```
+
+## Для чего нужен этот паттерн?
+
+Мост — это структурный паттерн проектирования, который разделяет один или несколько классов на две отдельные иерархии — абстракцию и реализацию, позволяя изменять их независимо друг от друга.
+
+## В каких случаях стоит использовать?
+
+Паттерн эффективен в следующих случаях
+
+- Когда нужно разделить монолитный класс с множеством вариантов функциональности
+- Когда требуется расширять класс в нескольких независимых направлениях
+- Когда нужно иметь возможность переключать реализации во время выполнения
+- Когда требуется уменьшить связанность между абстракцией и реализацией
+
+## Какие плюсы?
+
+- Позволяет строить платформо-независимые программы.
+- Скрывает лишние или опасные детали реализации от клиентского кода.
+- Реализует принцип открытости/закрытости.
+
+1. Независимое развитие компонентов:
+- Абстракция и реализация могут развиваться независимо
+- Легко добавлять новые типы абстракций и реализаций
+- Минимальное влияние изменений на существующий код
+
+2. Гибкость:
+- Возможность переключать реализации во время выполнения
+- Простое добавление новых платформ или способов реализации
+
+3. Улучшенная поддерживаемость:
+- Каждая иерархия отвечает за свою часть функциональности
+- Упрощение тестирования отдельных компонентов
+
+## Какие недостатки?
+
+- Усложняет код программы из-за введения дополнительных классов
+
+1. Усложнение кода:
+- Дополнительные интерфейсы и классы
+- Сложность для понимания новыми разработчиками
+
+2. Производительность:
+- Дополнительные накладные расходы на индирекцию
+- Может быть избыточным для простых случаев
